@@ -31,7 +31,7 @@ class User extends Model {
   // hasMany > ID do usuário com vários na tabela de Arquivos
   // belongsTo > ID do Arquivo na tabela de Usuários
   static associate(models) {
-    this.belongsTo(models.File, { foreignKey: 'avatar_id' });
+    this.belongsTo(models.File, { foreignKey: 'avatar_id', as: 'avatar' });
   }
 
   checkPassword(password) {
