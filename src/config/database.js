@@ -1,3 +1,5 @@
+require('dotenv/config');
+
 module.exports = {
   dialect: 'postgres', // Utilizar o tipo de Banco Postgres
   host: 'localhost', // Local
