@@ -1,8 +1,11 @@
 import * as Yup from 'yup';
-import { startOfHour, parseISO, isBefore } from 'date-fns';
+import { startOfHour, parseISO, isBefore, format, subHours } from 'date-fns';
+import pt from 'date-fns/locale/pt';
 import User from '../models/User';
 import File from '../models/File';
 import Appointment from '../models/Appointment';
+import Notification from '../schemas/Notification';
+import Mail from '../../lib/Mail';
 
 class AppointmentController {
   async index(req, res) {
@@ -81,6 +84,81 @@ class AppointmentController {
       user_id: req.user_id,
       provider_id,
       date,
+    });
+
+    // Buscar usuário
+    const user = await User.findByPk(req.userId);
+
+    // Formatar data, ex: 22 de Junho, às 8:40h
+    const formattedDate = format(
+      hourStart,
+      "'dia' dd 'de' MMMM', às' H:mm'h'",
+      { locale: pt }
+    );
+
+    // Notificar provedor
+    await Notification.create({
+      content: `Novo agendamento de ${user.name} para ${formattedDate}`,
+      user: provider_id,
+    });
+
+    return res.json(appointment);
+  }
+
+  async delete(req, res) {
+    const appointment = await Appointment.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'provider',
+          attributes: ['name', 'email'],
+        },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['name'],
+        },
+      ],
+    });
+
+    if (!appointment) {
+      return res.status(400).json({
+        error: 'Compromisso não encontrado',
+      });
+    }
+
+    // compara o usuário enviado com o logado
+    if (appointment.user_id !== req.userId) {
+      return res.status(401).json({
+        error: 'Você não tem permissão de cancelar este compromisso',
+      });
+    }
+
+    // Diminuir 2 horas (pode cancelar se 2 horas antes)
+    const dateWithSub = subHours(appointment.date, 2);
+
+    // Verifica se o horário é antes do horário atual
+    if (isBefore(dateWithSub, new Date())) {
+      return res.status(401).json({
+        error: 'Você somente pode cancelar compromissos mais que 2 horas antes',
+      });
+    }
+
+    appointment.canceled_at = new Date();
+
+    await appointment.save();
+
+    await Mail.sendMail({
+      to: `${appointment.provider.name} <${appointment.provider.email}>`,
+      subject: 'Agendamento cancelado',
+      template: 'cancellation',
+      context: {
+        provider: appointment.provider.name,
+        user: appointment.user.name,
+        date: format(appointment.date, "'dia' dd 'de' MMMM', às' H:mm'h'", {
+          locale: pt,
+        }),
+      },
     });
 
     return res.json(appointment);

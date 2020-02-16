@@ -22,11 +22,11 @@ class SessionController {
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return res.result(401).json({ error: 'Usuário inválido' });
+      return res.status(401).json({ error: 'Usuário inválido' });
     }
 
     if (!(await user.checkPassword(password))) {
-      return res.result(401).json({ error: 'Password inválido' });
+      return res.status(401).json({ error: 'Password inválido' });
     }
 
     const { id, name } = user;
